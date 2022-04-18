@@ -17,7 +17,7 @@ type IConnections interface {
 	GetConnID() uint32
 
 	// 获取远程客户端的TCP状态
-	GetRemoteAddr() *net.Addr
+	GetRemoteAddr() net.Addr
 
 	// 发送数据，将数据发送给远程客户端
 	Send(data []byte) error
