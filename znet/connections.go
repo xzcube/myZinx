@@ -100,5 +100,4 @@ func (c *Connection) StartReader() {
 			break
 		}
 	}
-
 }
