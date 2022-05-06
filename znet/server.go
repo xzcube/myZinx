@@ -16,6 +16,13 @@ type Server struct {
 	IP string
 	// 服务器的监听端口
 	Port int
+	// 当前的Server添加又给router，server注册链接对应的业务
+	Router ziface.IRouter
+}
+
+func (s *Server) AddRouter(router ziface.IRouter) {
+	s.Router = router
+	fmt.Println("Add router Success!")
 }
 
 func (s *Server) Start() {
@@ -36,6 +43,8 @@ func (s *Server) Start() {
 			return
 		}
 		fmt.Println("start Zinx server success, ", s.Name, "success Listening")
+		var cid uint32
+		cid = 0
 
 		// 阻塞地等待客户端连接，处理客户端链接业务（读写）
 		for {
@@ -46,25 +55,12 @@ func (s *Server) Start() {
 				continue
 			}
 
-			// 已经与客户端建立连接，做一些业务，做一个最基本的最大512字节的回显业务
-			go func() {
-				for {
-					buff := make([]byte, 512)
-					cnt, err := conn.Read(buff)
-					if err != nil {
-						fmt.Println("recv buf err, ", err)
-						continue
-					}
+			// 将处理新连接的业务方法，和conn进行绑定，得到 我们的链接模块
+			dealConn := NewConnection(conn, cid, s.Router)
+			cid++
 
-					// 回显功能
-					if _, err := conn.Write(buff[:cnt]); err != nil {
-						// 回显失败
-						fmt.Println("write back buff err:", err)
-						continue
-					}
-				}
-
-			}()
+			// 启动当前的链接业务处理
+			go dealConn.Start()
 		}
 	}()
 
@@ -95,6 +91,7 @@ func NewServer(name string) ziface.IServer {
 		IPVersion: "tcp4",
 		IP: "0.0.0.0",
 		Port: 8999,
+		Router: nil,
 	}
 	return s
 }
