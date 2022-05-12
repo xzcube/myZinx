@@ -4,7 +4,7 @@ import (
 	"myZinx/ziface"
 )
 
-type Request struct{
+type Request struct {
 	// 已经和客户端建立好的连接
 	conn ziface.IConnections
 
