@@ -88,7 +88,7 @@ func (s *Server) Server() {
 /*
 	初始化Server模块的方法
  */
-func NewServer(name string) ziface.IServer {
+func NewServer() ziface.IServer {
 	s := &Server{
 		Name: utils.GlobalObject.Name,
 		IPVersion: "tcp4",

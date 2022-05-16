@@ -7,25 +7,25 @@ type Message struct {
 }
 
 func (m *Message) GetMsgId() uint32 {
-	panic("implement me")
+	return m.Id
 }
 
-func (m *Message) GetMstLen() uint32 {
-	panic("implement me")
+func (m *Message) GetMsgLen() uint32 {
+	return m.DataLen
 }
 
 func (m *Message) GetData() []byte {
-	panic("implement me")
+	return m.Data
 }
 
 func (m *Message) SetMsgId(id uint32) {
-	panic("implement me")
+	m.Id = id
 }
 
 func (m *Message) SetData(data []byte) {
-	panic("implement me")
+	m.Data = data
 }
 
 func (m *Message) SetDataLen(len uint32) {
-	panic("implement me")
+	m.DataLen = len
 }

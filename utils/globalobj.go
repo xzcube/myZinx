@@ -62,5 +62,5 @@ func init() {
 	}
 
 	// 应该尝试从conf/zinx.json中加载一些用户自定义的参数
-	GlobalObject.Reload()
+	// GlobalObject.Reload()
 }
