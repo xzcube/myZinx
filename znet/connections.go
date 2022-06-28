@@ -1,8 +1,9 @@
 package znet
 
 import (
+	"errors"
 	"fmt"
-	"myZinx/utils"
+	"io"
 	"myZinx/ziface"
 	"net"
 )
@@ -46,7 +47,7 @@ func (c *Connection) Stop() {
 	c.IsClosed = false
 
 	// 关闭socket链接
-	c.Conn.Close()
+	_ = c.Conn.Close()
 	close(c.ExitChan)
 }
 
@@ -62,8 +63,27 @@ func (c *Connection) GetRemoteAddr() net.Addr {
 	return c.Conn.RemoteAddr()
 }
 
-func (c *Connection) Send(data []byte) error {
-	panic("implement me")
+func (c *Connection) SendMsg(msgId uint32, data []byte) error {
+	if c.IsClosed {
+		return errors.New("Connection closed ")
+	}
+
+	// 将data进行封包 MsgDataLen + MsgID + MsgData
+	dp := NewDataPack()
+	binaryMsg, err := dp.Pack(NewMsgPackage(msgId, data))
+	if err != nil {
+		fmt.Println("Pack msg error, id is:", msgId)
+		return errors.New("Pack error msg ")
+	}
+
+	// 将数据发送给客户端
+	_, err = c.Conn.Write(binaryMsg)
+	if err != nil {
+		fmt.Println("Write msg err, msgId is:", msgId)
+		return errors.New("conn Write error")
+	}
+
+	return nil
 }
 
 // 初始化连接模块的方法
@@ -90,17 +110,45 @@ func (c *Connection) StartReader() {
 
 	for {
 		// 读取客户端的数据到buff中
-		buf := make([]byte, utils.GlobalObject.MaxPackageSize)
+		/*buf := make([]byte, utils.GlobalObject.MaxPackageSize)
 		_, err := c.Conn.Read(buf)
 		if err != nil {
 			fmt.Println("recv buff err:", err)
 			continue
+		}*/
+
+		// 创建一个拆包解包的对象
+		dp := NewDataPack()
+
+		// 读取客户端的MsgHead的二进制流 8个字节
+		headData := make([]byte, dp.GetHeadLen())
+		if _, err := io.ReadFull(c.GetConnection(), headData); err != nil {
+			fmt.Println("read msgHead err:", err)
 		}
+
+		// 拆包，得到msgID和msgDataLen 放在msg消息中
+		msg, err := dp.Unpack(headData)
+		if err != nil {
+			fmt.Println("unpack err:", err)
+		}
+
+		// 根据dataLen 再次读取data，放在msg.Data中
+		var data []byte
+		if msg.GetMsgLen() > 0 {
+			data = make([]byte, msg.GetMsgLen())
+			_, err := io.ReadFull(c.GetConnection(), data)
+			if  err != nil {
+				fmt.Println("read msg data err:", err)
+				break
+			}
+		}
+
+		msg.SetData(data)
 
 		// 得到当前Conn数据的Request请求数据
 		req := Request{
 			conn: c,
-			data: buf,
+			msg: msg,
 		}
 
 		// 从路由中找到注册绑定的Conn对应的router调用
