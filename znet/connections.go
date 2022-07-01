@@ -65,7 +65,7 @@ func (c *Connection) Stop() {
 	c.IsClosed = false
 
 	// 关闭socket链接
-	_ = c.Conn.Close()
+	c.Conn.Close()
 
 	// 告知Writer关闭
 	c.ExitChan <- true
@@ -112,7 +112,7 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 func (c *Connection) StartReader() {
 	fmt.Println("[Reader Goroutine is running]")
 
-	defer fmt.Println("connID = ", c.ConnID, "[Reader is exit], remote addr is", c.GetRemoteAddr().String())
+	defer fmt.Println("[Reader is exit],connID = ", c.ConnID, " remote addr is", c.GetRemoteAddr().String())
 	defer c.Stop()
 
 	for {
@@ -131,12 +131,14 @@ func (c *Connection) StartReader() {
 		headData := make([]byte, dp.GetHeadLen())
 		if _, err := io.ReadFull(c.GetConnection(), headData); err != nil {
 			fmt.Println("read msgHead err:", err)
+			break
 		}
 
 		// 拆包，得到msgID和msgDataLen 放在msg消息中
 		msg, err := dp.Unpack(headData)
 		if err != nil {
 			fmt.Println("unpack err:", err)
+			break
 		}
 
 		// 根据dataLen 再次读取data，放在msg.Data中
@@ -169,7 +171,7 @@ func (c *Connection) StartReader() {
  */
 func (c *Connection) StartWriter() {
 	fmt.Println("[Writer Goroutine is running]")
-	defer fmt.Println(c.GetRemoteAddr().String(), "[conn Writer exit!]")
+	defer fmt.Println("[conn Writer exit!] ", c.GetRemoteAddr().String())
 
 	// 不断地阻塞等待channel消息，写给客户端
 	for {
