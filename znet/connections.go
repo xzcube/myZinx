@@ -21,11 +21,28 @@ type Connection struct {
 	// 当前的连接状态
 	IsClosed bool
 
-	// 告知当前连接已经退出的channel
+	// 告知当前连接已经退出的channel(由Reader告知Writer退出)
 	ExitChan chan bool
+
+	// 无缓冲的管道，用于读、写Goroutine之间的消息通信
+	msgChan chan []byte
 
 	// 消息的管理msgId 和对应的处理业务api
 	MsgHandle ziface.IMsgHandle
+}
+
+// 初始化连接模块的方法
+func NewConnection(conn *net.TCPConn, connID uint32, handle ziface.IMsgHandle) *Connection {
+	c := &Connection{
+		Conn: conn,
+		ConnID: connID,
+		MsgHandle: handle,
+		IsClosed: false,  // 表示开启状态
+		ExitChan: make(chan bool, 1),
+		msgChan: make(chan []byte),
+	}
+
+	return c
 }
 
 func (c *Connection) Start() {
@@ -33,7 +50,8 @@ func (c *Connection) Start() {
 	// 启动从当前连接的读数据业务
 	go c.StartReader()
 
-	// TODO 启动从当前链接写数据的业务
+	// 启动从当前链接写数据的业务
+	go c.StartWriter()
 
 }
 
@@ -48,7 +66,13 @@ func (c *Connection) Stop() {
 
 	// 关闭socket链接
 	_ = c.Conn.Close()
+
+	// 告知Writer关闭
+	c.ExitChan <- true
+
+	// 回收资源
 	close(c.ExitChan)
+	close(c.msgChan)
 }
 
 func (c *Connection) GetConnection() *net.TCPConn {
@@ -77,35 +101,18 @@ func (c *Connection) SendMsg(msgId uint32, data []byte) error {
 	}
 
 	// 将数据发送给客户端
-	_, err = c.Conn.Write(binaryMsg)
-	if err != nil {
-		fmt.Println("Write msg err, msgId is:", msgId)
-		return errors.New("conn Write error")
-	}
+	c.msgChan <- binaryMsg
 
 	return nil
-}
-
-// 初始化连接模块的方法
-func NewConnection(conn *net.TCPConn, connID uint32, handle ziface.IMsgHandle) *Connection {
-	c := &Connection{
-		Conn: conn,
-		ConnID: connID,
-		MsgHandle: handle,
-		IsClosed: false,  // 表示开启状态
-		ExitChan: make(chan bool, 1),
-	}
-
-	return c
 }
 
 /*
 	依次从用户端读取数据，读取数据之后把数据变成一个request，分别去执行用户已经重写的3个router里面的方法
  */
 func (c *Connection) StartReader() {
-	fmt.Println("Reader Goroutine is running")
+	fmt.Println("[Reader Goroutine is running]")
 
-	defer fmt.Println("connID = ", c.ConnID, "Reader is exit, remote addr is", c.GetRemoteAddr().String())
+	defer fmt.Println("connID = ", c.ConnID, "[Reader is exit], remote addr is", c.GetRemoteAddr().String())
 	defer c.Stop()
 
 	for {
@@ -154,5 +161,28 @@ func (c *Connection) StartReader() {
 		// 从路由中找到注册绑定的conn对应的router调用
 		// 根据绑定好的MsgID,找到对应处理api的业务并执行
 		go c.MsgHandle.DoMsgHandle(&req)
+	}
+}
+
+/*
+	写消息的goroutine，专门发送给客户端消息的模块
+ */
+func (c *Connection) StartWriter() {
+	fmt.Println("[Writer Goroutine is running]")
+	defer fmt.Println(c.GetRemoteAddr().String(), "[conn Writer exit!]")
+
+	// 不断地阻塞等待channel消息，写给客户端
+	for {
+		select {
+		case data := <- c.msgChan:
+			// 有数据要写给客户端
+			if _, err := c.Conn.Write(data); err != nil {
+				fmt.Println("send data error:", err)
+				return
+			}
+		case <- c.ExitChan:
+			// 代表reader已经退出，此时Writer也要退出
+			return
+		}
 	}
 }
