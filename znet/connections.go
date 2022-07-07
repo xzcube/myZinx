@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"myZinx/utils"
 	"myZinx/ziface"
 	"net"
 )
@@ -160,9 +161,16 @@ func (c *Connection) StartReader() {
 			msg:  msg,
 		}
 
-		// 从路由中找到注册绑定的conn对应的router调用
-		// 根据绑定好的MsgID,找到对应处理api的业务并执行
-		go c.MsgHandle.DoMsgHandle(&req)
+		// 做一个判断，判断是否已经开启了工作池
+		if utils.GlobalObject.WorkerPoolSize > 0 {
+			// 已经开启了工作池机制，将消息发送给worker工作池处理即可
+			c.MsgHandle.SendMsgToTaskQueue(&req)
+		} else {
+			// 从路由中找到注册绑定的conn对应的router调用
+			// 根据绑定好的MsgID,找到对应处理api的业务并执行
+			go c.MsgHandle.DoMsgHandle(&req)
+		}
+
 	}
 }
 
