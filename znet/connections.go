@@ -61,6 +61,8 @@ func (c *Connection) Start() {
 	// 启动从当前链接写数据的业务
 	go c.StartWriter()
 
+	// 按照开发者传递过来的 创建链接之后需要调用处理的业务，执行对应的Hook函数
+	c.TCPServer.CallOnConnStart(c)
 }
 
 func (c *Connection) Stop() {
@@ -71,6 +73,9 @@ func (c *Connection) Stop() {
 		return
 	}
 	c.IsClosed = false
+
+	// 调用开发者注册的，销毁链接之前需要执行的业务hook函数
+	c.TCPServer.CallOnConnStop(c)
 
 	// 关闭socket链接
 	c.Conn.Close()
@@ -84,7 +89,6 @@ func (c *Connection) Stop() {
 	// 回收资源
 	close(c.ExitChan)
 	close(c.msgChan)
-
 }
 
 func (c *Connection) GetConnection() *net.TCPConn {
