@@ -52,6 +52,7 @@ func NewConnection(server ziface.IServer, conn *net.TCPConn, connID uint32, hand
 		IsClosed: false,  // 表示开启状态
 		ExitChan: make(chan bool, 1),
 		msgChan: make(chan []byte),
+		property: make(map[string]interface{}),
 	}
 
 	// 将conn加入到ConnManager中
